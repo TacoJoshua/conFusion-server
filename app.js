@@ -1,14 +1,16 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+const createError = require('http-errors');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
+const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
-var dishRouter = require('./routes/dishRouter');
-var promoRouter = require('./routes/promoRouter');
-var leaderRouter = require('./routes/leaderRouter');
+const indexRouter = require('./routes/index');
+const usersRouter = require('./routes/users');
+const dishRouter = require('./routes/dishRouter');
+const promoRouter = require('./routes/promoRouter');
+const leaderRouter = require('./routes/leaderRouter');
 
 const mongoose = require('mongoose');
 
@@ -21,7 +23,7 @@ connect.then((db) => {
   console.log('Connected correctly to server');
 }, (err) => { console.log(err); });
 
-var app = express();
+const app = express();
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -30,32 +32,40 @@ app.set('view engine', 'jade');
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser('12345-67890-09876-54321'));
+//app.use(cookieParser('12345-67890-09876-54321'));
+
+app.use(session({
+  name: 'session-id',
+  secret: '12345-67890-09876-54321',
+  saveUninitialized: false,
+  resave: false,
+  store: new FileStore()
+}));
 
 function auth(req, res, next) {
-  console.log(req.signedCookies);
+  console.log(req.session);
 
-  if (!req.signedCookies.user) {
-    var authHeader = req.headers.authorization;
+  if (!req.session.user) {
+    let authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      var err = new Error('You are not authenticated!');
+      let err = new Error('You are not authenticated!');
 
       res.setHeader('WWW-Authenticate', 'Basic');
       err.status = 401;
       return next(err);
     }
-    var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
+    let auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
 
-    var username = auth[0];
-    var password = auth[1];
+    let username = auth[0];
+    let password = auth[1];
 
     if (username === 'admin' && password === 'password') {
-      res.cookie('user', 'admin', { signed: true });
+      req.session.user = 'admin';
       next();
     }
     else {
-      var err = new Error('You are not authenticated!');
+      let err = new Error('You are not authenticated!');
 
       res.setHeader('WWW-Authenticate', 'Basic');
       err.status = 401;
@@ -63,11 +73,11 @@ function auth(req, res, next) {
     }
   }
   else {
-    if (req.signedCookies.user === 'admin') {
+    if (req.session.user === 'admin') {
       next();
     }
     else {
-      var err = new Error('You are not authenticated!');
+      let err = new Error('You are not authenticated!');
 
       err.status = 401;
       return next(err);
